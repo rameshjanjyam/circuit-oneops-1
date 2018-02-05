@@ -121,8 +121,6 @@ else
   rubygems_proxy="https://rubygems.org"
 fi
 
-cd $local_gems
-
 if [ -e /etc/redhat-release ] ; then
 	# needed for rhel >= 7
 	gem update --system 1.8.25
