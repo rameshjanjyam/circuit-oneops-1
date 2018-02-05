@@ -99,18 +99,15 @@ module AzureNetwork
         puts("operation took #{duration} seconds")
         OOLog.info("NIC '#{network_interface.name}' was updated in #{duration} seconds")
         response
-      rescue MsRestAzure::AzureOperationError => e
-        error_msg = e.body.to_s
-        if error_msg.include? "\"code\"=>\"SubnetIsFull\""
-          raise AzureBase::CustomExceptions::SubnetIsFullError, error_msg
-        elsif error_msg.include? "\"code\"=>\"ResourceNotFound\""
-          Chef::Log.error('***FAULT:FATAL= NIC is no more available, please consider replacing compute')
-          Chef::Log.error('***FAULT:FATAL=' + error_msg)
-        else
-          OOLog.fatal("Error creating/updating NIC.  Exception: #{e.body}")
-        end
       rescue => ex
-        OOLog.fatal("Error creating/updating NIC.  Exception: #{ex.message}")
+        if ex.message =~ /Subnet \w.* with address prefix \w.* is already full/i
+          raise AzureBase::CustomExceptions::SubnetIsFullError, ex.message
+        elsif ex.message.include? 'ResourceNotFound'
+          Chef::Log.error('***FAULT:FATAL= NIC is no more available, please consider replacing compute')
+          Chef::Log.error('***FAULT:FATAL=' + ex.message)
+        else
+          OOLog.fatal("Error creating/updating NIC.  Exception: #{ex.message}")
+        end
       end
     end
 
@@ -228,14 +225,14 @@ module AzureNetwork
       OOLog.info("Deleting NetworkInterfaceCard '#{nic_name}' from '#{resource_group_name}' ")
       start_time = Time.now.to_i
       begin
-      nic_exists = !@network_client.network_interfaces(resource_group: resource_group_name).select{|nic| (nic.name == nic_name)}.empty?
-      if !nic_exists
-        OOLog.info("NetworkInterfaceCard '#{nic_name}' in ResourceGroup '#{resource_group_name}' was not found. Skipping deletion...")
-        result = nil
-      else
-        nic = @network_client.network_interfaces.get(resource_group_name, nic_name)
-        result = !nic.nil? ? nic.destroy : OOLog.info('AzureNetwork::NetworkInterfaceCard - 404 code, trying to delete something that is not there.')
-      end
+        nic_exists = !@network_client.network_interfaces(resource_group: resource_group_name).select{|nic| (nic.name == nic_name)}.empty?
+        if !nic_exists
+          OOLog.info("NetworkInterfaceCard '#{nic_name}' in ResourceGroup '#{resource_group_name}' was not found. Skipping deletion...")
+          result = nil
+        else
+          nic = @network_client.network_interfaces.get(resource_group_name, nic_name)
+          result = !nic.nil? ? nic.destroy : OOLog.info('AzureNetwork::NetworkInterfaceCard - 404 code, trying to delete something that is not there.')
+        end
       rescue MsRestAzure::AzureOperationError => e
         OOLog.fatal("Error deleting NetworkInterfaceCard '#{nic_name}' in ResourceGroup '#{resource_group_name}'. Exception: #{e.body}")
       rescue => e
