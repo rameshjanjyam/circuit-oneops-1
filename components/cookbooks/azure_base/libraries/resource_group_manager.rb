@@ -69,13 +69,18 @@ module AzureBase
 
     # This method will delete the resource group
     def delete
-      begin
-        @resource_client.resource_groups.get(@rg_name).destroy
-      rescue MsRestAzure::AzureOperationError => e
-        OOLog.fatal("Error deleting resource group: #{e.body}")
-      rescue => ex
-        OOLog.fatal("Error deleting resource group: #{ex.message}")
-      end
+      @resource_client.resource_groups.get(@rg_name).destroy
+    end
+
+    def list_resources
+      require 'azure_mgmt_resources'
+
+      token_provider = MsRestAzure::ApplicationTokenProvider.new(@creds[:tenant_id], @creds[:client_id], @creds[:client_secret])
+      credentials = MsRest::TokenCredentials.new(token_provider)
+      client = Azure::ARM::Resources::ResourceManagementClient.new(credentials)
+      client.subscription_id = @creds[:subscription_id]
+
+      client.resource_groups.list_resources(@rg_name)
     end
 
     # this method will return the resource group and availability set names
